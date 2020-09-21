@@ -1,5 +1,7 @@
 #lang racket
 
+(require rackunit)
+
 (define int (lambda (program data) (interpret program data)))
 
 (define (validate-read read)
@@ -17,11 +19,9 @@
       (let ([block (get-instr-ptr state)])
         (cond
           [(equal? block -1) (get-return state)]
-          [else (run-block (eval-block block jmp-table state))])))
+          [else (run-block (eval-block (list-ref blocks block) jmp-table state))])))
     (run-block st_0)))
     
-   
-
 (define empty-state (hash))
 
 (define (set-variable state var val) (hash-set state var val))
@@ -38,7 +38,7 @@
 
 (define (is-variable? state var) (hash-has-key? state var)) 
 
-(define (read-variables names data) (hash (map cons names data)))
+(define (read-variables names data) (make-immutable-hash (map cons names data)))
 
 (define (map-labels blocks)
   (define (iter blocks index acc)
@@ -87,7 +87,8 @@
     [(cons? expr)
      (let ([tail (map (lambda (e) (eval-expression state e)) (cdr expr))]
            [head (car expr)])
-       (eval (cons head tail)))]
+       ;(display tail)
+       (apply (eval head) tail))]
     [else expr]))
 
 
@@ -100,3 +101,9 @@
           (goto search))
     (found (return (car valuelist)))
     ))
+
+
+(test-begin
+ (let ([state (read-variables '(a b c dd e28 F GGWP228) '(1 2 3 '(0 0 0) "e28" F #f))])
+   (check-equal? ((eval-expression state '(+ a b)) 3)
+   (check-equal? (eval-expression state '(length dd)) 3))))
