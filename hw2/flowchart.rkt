@@ -1,6 +1,7 @@
 #lang racket
 
 (require rackunit)
+(require rackunit/text-ui)
 
 (define int (lambda (program data) (interpret program data)))
 
@@ -88,7 +89,7 @@
      (let ([tail (map (lambda (e) (eval-expression state e)) (cdr expr))]
            [head (car expr)])
        ;(display tail)
-       (apply (eval head) tail))]
+       (apply (eval head (make-base-namespace)) tail))]
     [else expr]))
 
 
@@ -103,7 +104,23 @@
     ))
 
 
-(test-begin
- (let ([state (read-variables '(a b c dd e28 F GGWP228) '(1 2 3 '(0 0 0) "e28" F #f))])
-   (check-equal? ((eval-expression state '(+ a b)) 3)
-   (check-equal? (eval-expression state '(length dd)) 3))))
+(check-equal? (+ 1 1) 2)
+
+(define reverse-tests
+  (test-suite
+   "Tests of list-reverse"
+   (test-case 
+    "empty list"
+    (check-equal? (reverse null) null))
+   (test-case
+    "singleton list"
+    (check-equal? (reverse (list 3)) (list 3)))
+   (test-case
+    "triplet"
+    (check-equal? (reverse (list 3 7 11)) (list 11 7 3)))))
+
+(define test_state (read-variables '(a b c dd e28 F GGWP228) '(1 2 3 (0 0 0) "e28" F #f)))
+
+(check-equal? (eval-expression test_state '(+ a b)) 3)
+
+(check-equal? (eval-expression test_state '(length dd)) 3)
