@@ -1,5 +1,7 @@
 #lang racket
 
+(require "tm-flowchart.rkt")
+
 (define find_name
   '((read name namelist valuelist)
     (search (if (equal? name (car namelist)) found cont))
@@ -20,7 +22,7 @@
       [else (impl (cdr is))]))
   (impl (cdr program)))
 
-(define (initial-code pp vs) `(,(cons pp vs)))
+(define (initial-code pp vs) `(,(list pp vs)))
 
 (define (static-var? division x) (set-member? division x))
 
@@ -52,7 +54,7 @@
      (let ([tail (map (lambda (e) (eval-exp e vs)) (cdr exp))]
            [head (car exp)])
        ;(display tail)
-       (apply (eval head) tail))]
+       (apply (eval head tm-int-namespace) tail))]
     [else exp]))
 
 
@@ -98,3 +100,72 @@
       (set! residual (extend residual code))
       (loop_pending)))
   residual)
+
+(define (relabel program)
+  (define new-label (make-hash))
+  (define r
+    (for/list ([bb program])
+      (define label (car bb))
+      (unless (dict-has-key? new-label label)
+        (dict-set! new-label label (dict-count new-label)))
+      (cons (dict-ref new-label label) (cdr bb))))
+  (for/list ([bb r])
+    (for/list ([instr bb])
+      (match instr
+        [`(if ,expr ,l ,r) `(if ,expr ,(dict-ref new-label l) ,(dict-ref new-label r))]
+        [`(goto ,l) `(goto ,(dict-ref new-label l))]
+        [x x]))))
+
+(define mix_flowchart
+  '((read program division vs0)
+    (init (:= pending (set (list (initial-point program) vs0)))
+          (:= marked (set))
+          (goto pending_while_cond))
+    (pending_while_cond (if (set-empty? pending) pending_while_end pending_while_start))
+    (pending_while_start (:= pp (first (set-first pending)))
+                         (:= vs (second (set-first pending)))
+                         (:= pending (set-rest pending))
+                         (:= marked (set-add marked (list pp vs)))
+                         (:= bb (lookup pp program))
+                         (:= code (initial-code pp vs))
+                         (goto bb_while_cond))
+    (bb_while_cond (if (empty? bb) bb_while_end bb_while_start))
+    (bb_while_start (:= cmd (first bb))
+                    (:= bb (rest bb))
+                    (:= op (car cmd))
+                    (goto match_op))
+    (match_op (if (equal? ':= op) process_ass match_op1))
+    (match_op1 (if (equal? 'goto op) process_goto match_op2))
+    (match_op2 (if (equal? 'if op) process_if match_op3))
+    (match_op3 (if (equal? 'return op) process_return error))
+    (process_ass (:= x (second cmd))
+                 (:= exp (third cmd))
+                 (if (static-var? division x) static_ass dynamic_ass))
+    (static_ass (:= vs (set-var vs x (eval-exp exp vs)))
+                (goto bb_while_cond))
+    (dynamic_ass (:= code (extend code (list ':= x (reduce exp vs))))
+                (goto bb_while_cond))
+    (process_goto (:= next_pp (second cmd))
+                  (:= bb (lookup next_pp program))
+                  (goto bb_while_cond))
+    (process_if (:= exp (second cmd))
+                (:= pp_true (third cmd))
+                (:= pp_false (fourth cmd))
+                (if (static-exp? division exp) static_cond dynamic_cond))
+    (static_cond (if (eval-exp exp vs) compress_true compress_false))
+    (compress_true (:= bb (lookup pp_true program))
+                   (goto bb_while_cond))
+    (compress_false (:= bb (lookup pp_false program))
+                    (goto bb_while_cond))
+    (dynamic_cond (:= true_label (list pp_true vs))
+                  (:= false_label (list pp_false vs))
+                  (:= pending (set-union pending (set-subtract (set true_label false_label) marked)))
+                  (:= code (extend code (list 'if (reduce exp vs) true_label false_label)))
+                  (goto bb_while_cond))
+    (process_return (:= code (extend code (list 'return (reduce exp vs))))
+                    (goto bb_while_cond))
+    (error (return 'error))
+    (bb_while_end (goto add_residual_block))
+    (add_residual_block (:= residual (extend residual code))
+                        (goto pending_while_cond))
+    (pending_while_end (return residual)))
