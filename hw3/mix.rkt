@@ -1,68 +1,13 @@
 #lang racket
 
-(require "tm-flowchart.rkt")
-
-(define find_name
-  '((read name namelist valuelist)
-    (search (if (equal? name (car namelist)) found cont))
-    (cont (:= valuelist (cdr valuelist))
-          (:= namelist (cdr namelist))
-          (goto search))
-    (found (return (car valuelist)))
-    ))
-
-(define (initial-point program)
-  (first (second program)))
-
-(define (lookup label program)
-  (define (impl is)
-    (cond
-      [(empty? is) (error label "no block with such label")]
-      [(equal? (caar is) label) (cdr (car is))]
-      [else (impl (cdr is))]))
-  (impl (cdr program)))
-
-(define (initial-code pp vs) `(,(list pp vs)))
-
-(define (static-var? division x) (set-member? division x))
-
-(define (static-exp? division exp)
-  (cond
-    [(symbol? exp) (static-var? division exp)]
-    [(and (cons? exp) (equal? 'quote (car exp))) #t]
-    [(cons? exp)
-     (let ([tail (andmap (lambda (e) (static-exp? division e)) (cdr exp))]
-           [head (car exp)])
-       ;(display tail)
-       tail)]
-    [else #t]))
-
-(define (set-var vs var val) (dict-set vs var val))
-
-(define (extend s e)
-  (when (> (random) 0.9)
-      (displayln (length s)))
-  (reverse (cons e (reverse s))))
-
-(define (reduce exp vs) exp)
-
-(define (eval-exp exp vs)
-  (cond
-    [(symbol? exp) (dict-ref vs exp (lambda () (error exp "no such static variable")))]
-    [(and (cons? exp) (equal? 'quote (car exp))) (cadr exp)]
-    [(cons? exp)
-     (let ([tail (map (lambda (e) (eval-exp e vs)) (cdr exp))]
-           [head (car exp)])
-       ;(display tail)
-       (apply (eval head tm-int-namespace) tail))]
-    [else exp]))
+(require "tm-flowchart.rkt" "flowchart.rkt" "aux-functions.rkt" rackunit)
 
 
 (define (mix_racket program division vs0)
   (define pp0 (initial-point program))
   (define pending (set (list pp0 vs0)))
   (define marked (set))
-  (define residual (list))
+  (define residual (list (remove-static-reads (car program) division)))
   (let loop_pending ()
     (unless (set-empty? pending)
       (define pp (first (set-first pending)))
@@ -85,6 +30,7 @@
             [`(if ,exp ,pp_true ,pp_false)
              (cond
                [(static-exp? division exp)
+                (displayln exp)
                 (cond
                   [(eval-exp exp vs) (set! bb (lookup pp_true program))]
                   [else (set! bb (lookup pp_false program))])]
@@ -104,22 +50,24 @@
 (define (relabel program)
   (define new-label (make-hash))
   (define r
-    (for/list ([bb program])
+    (for/list ([bb (cdr program)])
       (define label (car bb))
       (unless (dict-has-key? new-label label)
         (dict-set! new-label label (dict-count new-label)))
       (cons (dict-ref new-label label) (cdr bb))))
-  (for/list ([bb r])
-    (for/list ([instr bb])
-      (match instr
-        [`(if ,expr ,l ,r) `(if ,expr ,(dict-ref new-label l) ,(dict-ref new-label r))]
-        [`(goto ,l) `(goto ,(dict-ref new-label l))]
-        [x x]))))
+  (cons (car program)
+        (for/list ([bb r])
+          (for/list ([instr bb])
+            (match instr
+              [`(if ,expr ,l ,r) `(if ,expr ,(dict-ref new-label l) ,(dict-ref new-label r))]
+              [`(goto ,l) `(goto ,(dict-ref new-label l))]
+              [x x])))))
 
 (define mix_flowchart
   '((read program division vs0)
     (init (:= pending (set (list (initial-point program) vs0)))
           (:= marked (set))
+          (:= residual (list (remove-static-reads (car program) division)))
           (goto pending_while_cond))
     (pending_while_cond (if (set-empty? pending) pending_while_end pending_while_start))
     (pending_while_start (:= pp (first (set-first pending)))
@@ -162,10 +110,54 @@
                   (:= pending (set-union pending (set-subtract (set true_label false_label) marked)))
                   (:= code (extend code (list 'if (reduce exp vs) true_label false_label)))
                   (goto bb_while_cond))
-    (process_return (:= code (extend code (list 'return (reduce exp vs))))
+    (process_return (:= exp (second cmd))
+                    (:= code (extend code (list 'return (reduce exp vs))))
                     (goto bb_while_cond))
     (error (return 'error))
     (bb_while_end (goto add_residual_block))
     (add_residual_block (:= residual (extend residual code))
                         (goto pending_while_cond))
-    (pending_while_end (return residual)))
+    (pending_while_end (return residual))))
+
+(define mix_flowchart-division (set 'program 'division))
+
+(define tm-int-division (set 'Q 'ptr 'instr 'op 'symb 'next-label))
+
+;####################################################################
+;                             TESTS
+;####################################################################
+(define find_name
+  '((read name namelist valuelist)
+    (search (if (equal? name (car namelist)) found cont))
+    (cont (:= valuelist (cdr valuelist))
+          (:= namelist (cdr namelist))
+          (goto search))
+    (found (return (car valuelist)))))
+
+
+(test-equal? "Check tm-int specialization using mix_racket"
+             (int (mix_racket tm-int (set 'Q 'ptr 'instr 'op 'symb 'next-label) (hash 'Q tm-example 'ptr 0 'symb '())) '((1 1 1 0 1 0 1)))
+             '(1 1 0 1))
+
+(test-equal? "Check tm-int specialization using mix_flowchart"
+             (let* ([division (set 'Q 'ptr 'instr 'op 'symb 'next-label)]
+                    [vs0 (hash 'Q tm-example 'ptr 0)]
+                    [specialized (int mix_flowchart `(,tm-int ,division ,vs0))])
+               (int specialized '((1 1 1 0 1 0 1))))
+             '(1 1 0 1))
+
+(test-equal? "Check find_name specialization using mix_racket"
+             (let* ([division (set 'name 'namelist)]
+                    [vs0 (hash 'name 'z 'namelist '(x y z))]
+                    [specialized (mix_racket find_name division vs0)])
+               (int specialized '((1 2 3))))
+             3)
+
+(test-equal? "Check find_name specialization using mix_flowchart"
+             (let* ([division (set 'name 'namelist)]
+                    [vs0 (hash 'name 'z 'namelist '(x y z))]
+                    [specialized (int mix_flowchart `(,find_name ,division ,vs0))])
+               (int specialized '((1 2 3))))
+             3)
+               
+               
