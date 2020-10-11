@@ -30,7 +30,7 @@
             [`(if ,exp ,pp_true ,pp_false)
              (cond
                [(static-exp? division exp)
-                (displayln exp)
+                ;(displayln exp)
                 (cond
                   [(eval-exp exp vs) (set! bb (lookup pp_true program))]
                   [else (set! bb (lookup pp_false program))])]
