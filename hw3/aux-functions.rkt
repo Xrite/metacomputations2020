@@ -24,6 +24,14 @@
       [else (impl (cdr is))]))
   (impl (cdr program)))
 
+(define (lookup-block label program)
+  (define (impl is)
+    (cond
+      [(empty? is) (error label "no block with such label")]
+      [(equal? (caar is) label) (car is)]
+      [else (impl (cdr is))]))
+  (impl (cdr program)))
+
 (define (initial-code pp vs) `(,(list pp vs)))
 
 (define (static-var? division x) (set-member? division x))
@@ -42,7 +50,7 @@
 (define (set-var vs var val) (dict-set vs var val))
 
 (define (extend s e)
-  (when (> (random) 0.9) (displayln (length s)))
+  ;(when (> (random) 0.9) (displayln (length s)))
   (reverse (cons e (reverse s))))
 
 (define (reduce expr vs)
@@ -80,6 +88,56 @@
 
 (define (program-points program)
   (map car (cdr program)))
+
+(define blocks-in-pending '())
+
+(define (reset-blocks-in-pending) (set! blocks-in-pending '()))
+
+(define (add-to-blocks-in-pending bb) (set! blocks-in-pending (if (member bb blocks-in-pending) blocks-in-pending (cons bb blocks-in-pending))))
+
+(define (find-blocks-in-pending) blocks-in-pending)
+
+(define (vars-in-exp exp division)
+  (cond
+    [(symbol? exp) (if (static-var? division exp) (set exp) (set))]
+    [(and (cons? exp) (equal? 'quote (car exp))) (set)]
+    [(cons? exp)
+     (let ([tail (map (lambda (e) (vars-in-exp e division)) (cdr exp))]
+           [head (car exp)])
+       ;(display tail)
+       (apply set-union (cons (set) tail)))]
+    [else (set)]))
+  
+(define (find-projections program division)
+  (define (next partial)
+    (dict-map partial
+              (lambda (pp live-vars)
+                (cons pp (let f ([bb (lookup pp program)])
+                  (let* ([instr (car bb)]
+                         [op (car instr)])
+                    (match instr
+                      [`(:= ,x ,exp) (set-union (set-remove (f (cdr bb)) x) (vars-in-exp exp division))]
+                      [`(goto ,l) (dict-ref partial l)]
+                      [`(return ,exp) (vars-in-exp exp division)]
+                      [`(if ,exp ,l ,r) (set-union (vars-in-exp exp division) (dict-ref partial l) (dict-ref partial r))])))))))
+  (define initial (make-immutable-hash (map (lambda (pp) (cons pp (set))) (program-points program))))
+  (let fix ([x initial])
+    (let ([next_x (next x)])
+      (if (equal? x next_x)
+          x
+          (fix next_x)))))
+
+(define (retain-live vs live-vars)
+  (make-immutable-hash (filter (lambda (p) (set-member? live-vars (car p))) (dict->list vs))))
+                  
+(define find_name
+  '((read name namelist valuelist)
+    (search (if (equal? name (car namelist)) found cont))
+    (cont (:= valuelist (cdr valuelist))
+          (:= namelist (cdr namelist))
+          (goto search))
+    (found (return (car valuelist)))))
+
 
 ;########################################################
 ;            FUNCTIONS FOR TM INTERPRETER
