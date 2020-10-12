@@ -66,23 +66,24 @@
 
 
 (define mix_flowchart
-  '((read program division vs0)
-    (init (:= pending (set (list (initial-point program) vs0)))
+  '((read program division vs)
+    (init (:= pending (set (list (initial-point program) vs)))
           (:= marked (set))
-          (:= bp (reset-blocks-in-pending))
-          (:= bp (add-to-blocks-in-pending (cadr program)))
+          ;(:= bp (reset-blocks-in-pending))
+          ;(:= bp (add-to-blocks-in-pending (cadr program)))
+          (:= bp (find-blocks-in-pending program division))
           (:= live-vars (find-projections program division))
           (:= residual (list (remove-static-reads (car program) division)))
-          (:= xd '())
+          ;(:= xd '())
           (goto pending_while_cond))
     (pending_while_cond (if (set-empty? pending) pending_while_end pending_while_start))
     (pending_while_start (:= pp_dyn (first (set-first pending)))
                          (:= vs (second (set-first pending)))
                          ;(:= bbs (cdr program))
-                         (:= xd xd)
-                         (:= xd (find-blocks-in-pending))
-                         (:= bbs (find-blocks-in-pending))
-                         (:= debug (displayln blocks-in-pending))
+                         ;(:= xd xd)
+                         ;(:= xd (find-blocks-in-pending))
+                         (:= bbs bp)
+                         ;(:= debug (displayln blocks-in-pending))
                          (goto find_pp))
     (find_pp (if (empty? bbs) error_pp_not_found find_pp_not_empty_bbs))
     (find_pp_not_empty_bbs (:= bb (cdar bbs))
@@ -136,9 +137,9 @@
                   (:= code (extend code (list 'if (reduce exp vs) true_label false_label)))
                   ;(:= pending (set-union pending (set-subtract (set (list (third cmd) vs) (list (fourth cmd) vs)) marked)))
                   ;(:= code (extend code (list 'if (reduce (second cmd) vs) (list (third cmd) vs) (list (fourth cmd) vs))))
-                  (:= bp (add-to-blocks-in-pending (lookup-block pp_true program)))
-                  (:= bp (add-to-blocks-in-pending (lookup-block pp_false program)))
-                  (:= debug (displayln (find-blocks-in-pending)))
+                  ;(:= bp (add-to-blocks-in-pending (lookup-block pp_true program)))
+                  ;(:= bp (add-to-blocks-in-pending (lookup-block pp_false program)))
+                  ;(:= debug (displayln (find-blocks-in-pending)))
                   (goto bb_while_cond))
     (process_return (:= exp (second cmd))
                     (:= code (extend code (list 'return (reduce exp vs))))
@@ -150,9 +151,147 @@
                         (goto pending_while_cond))
     (pending_while_end (return residual))))
 
-(define mix_flowchart-division (set 'program 'division 'bbs 'bb 'pp 'cmd 'op 'x 'exp 'next_pp 'pp_true 'pp_false 'debug 'live-vars 'xd))
+(define mix_flowchart-division (set 'program 'division 'bbs 'bb 'pp 'cmd 'op 'x 'exp 'next_pp 'pp_true 'pp_false 'debug 'live-vars 'xd 'bp))
 
 (define tm-int-division (set 'Q 'ptr 'instr 'op 'symb 'next-label))
+
+(define flowchart-int-division (set 'program 'pp 'bb 'cmd 'op 'x 'exp 'next_pp 'pp_true 'pp_false 'debug))
+
+(define flowchart-int
+  '((read program vs)
+    (init (:= pp (initial-point program))
+          (:= bb (lookup pp program))
+          (goto bb_while_cond))
+    (bb_while_cond (if (empty? bb) bb_while_end bb_while_start))
+    (bb_while_start (:= cmd (first bb))
+                    (:= bb (rest bb))
+                    (:= op (car cmd))
+                    (goto match_op))
+    (match_op (if (equal? ':= op) process_ass match_op1))
+    (match_op1 (if (equal? 'goto op) process_goto match_op2))
+    (match_op2 (if (equal? 'if op) process_if match_op3))
+    (match_op3 (if (equal? 'return op) process_return error_wrong_op))
+    (process_ass (:= x (second cmd))
+                 (:= exp (third cmd))
+                 (:= vs (set-var vs x (eval-exp exp vs)))
+                 (goto bb_while_cond))
+    (process_goto (:= next_pp (second cmd))
+                  (:= bb (lookup next_pp program))
+                  (goto bb_while_cond))
+    (process_if (:= exp (second cmd))
+                (:= pp_true (third cmd))
+                (:= pp_false (fourth cmd))
+                (if (eval-exp exp vs) compress_true compress_false))
+    (compress_true (:= bb (lookup pp_true program))
+                   (goto bb_while_cond))
+    (compress_false (:= bb (lookup pp_false program))
+                    (goto bb_while_cond))
+    (process_return (:= exp (second cmd))
+                    (return (eval-exp exp vs)))
+    (error_wrong_op (return (list 'error op)))
+    (bb_while_end (goto error_bb_empty))
+    (error_bb_empty (return 'error_bb_empty))))
+
+;####################################################################
+;                            VS REMOVING
+;####################################################################
+
+(define (remove-eval-exp-from-exp exp)
+  (cond
+    [(symbol? exp) exp]
+    [(and (cons? exp) (equal? 'quote (car exp))) exp]
+    [(match exp [`(eval-exp ,exp ,vs) #t] [_ #f]) (second (second exp))]
+    [(cons? exp)
+     (let ([tail (map (lambda (e) (remove-eval-exp-from-exp e)) (cdr exp))]
+           [head (car exp)])
+       ;(display tail)
+       (cons head tail))]
+    [else exp]))
+
+(define (remove-reduce-from-exp exp)
+  (cond
+    [(symbol? exp) exp]
+    [(and (cons? exp) (equal? 'quote (car exp))) exp]
+    [(match exp [`(reduce ,exp ,vs) #t] [_ #f]) (second (second exp))]
+    [(cons? exp)
+     (let ([tail (map (lambda (e) (remove-reduce-from-exp e)) (cdr exp))]
+           [head (car exp)])
+       ;(display tail)
+       (cons head tail))]
+    [else exp]))
+
+(define (expand-vs-in-exp exp vars)
+  (cond
+    [(symbol? exp) (if (equal? exp 'vs)
+                       (cons 'list (map (lambda (v) `(cons ',v ,v)) vars))
+                       exp)]
+    [(and (cons? exp) (equal? 'quote (car exp))) exp]
+    [(cons? exp)
+     (let ([tail (map (lambda (e) (expand-vs-in-exp e vars)) (cdr exp))]
+           [head (car exp)])
+       ;(display tail)
+       (cons head tail))]
+    [else exp]))
+
+(define (unvs program vars read-vars vs-name)
+  (define removed-ass
+    (for/list ([bb (cdr program)])
+      (cons
+       (car bb)
+       (for/list ([instr (cdr bb)])
+         (match instr
+           [`(:= vs (set-var vs ,var-name ,value)) `(:= ,(second var-name) ,value)]
+           [x x])))))
+  (define removed-eval-exp
+    (for/list ([bb removed-ass])
+      (cons
+       (car bb)
+       (for/list ([instr (cdr bb)])
+         (match instr
+           [`(:= ,x ,exp) `(:= ,x ,(remove-eval-exp-from-exp exp))]
+           [`(if ,exp ,l ,r) `(if ,(remove-eval-exp-from-exp exp) ,l ,r)]
+           [`(return ,exp) `(return ,(remove-eval-exp-from-exp exp))]
+           [x x])))))
+  (define removed-reduce
+    (for/list ([bb removed-eval-exp])
+      (cons
+       (car bb)
+       (for/list ([instr (cdr bb)])
+         (match instr
+           [`(:= ,x ,exp) `(:= ,x ,(remove-reduce-from-exp exp))]
+           [`(if ,exp ,l ,r) `(if ,(remove-reduce-from-exp exp) ,l ,r)]
+           [`(return ,exp) `(return ,(remove-reduce-from-exp exp))]
+           [x x])))))
+   (define removed-vs-ass
+    (for/list ([bb removed-reduce])
+      (cons
+       (car bb)
+       (for/fold ([res null]
+                  #:result (reverse res))
+                 ([instr (cdr bb)])
+         (match instr
+           [`(:= vs ,exp) (values (append res (for/list ([var vars]) `(:= ,var (dict-ref ,exp ',var)))))]
+           [x (values (cons x res))])))))
+  (define expanded-vs
+    (for/list ([bb removed-vs-ass])
+      (cons
+       (car bb)
+       (for/list ([instr (cdr bb)])
+         (match instr
+           [`(:= ,x ,exp) `(:= ,x ,(expand-vs-in-exp exp vars))]
+           [`(if ,exp ,l ,r) `(if ,(expand-vs-in-exp exp vars) ,l ,r)]
+           [`(return ,exp) `(return ,(expand-vs-in-exp exp vars))]
+           [x x])))))
+  (define read-block (cons 'read read-vars))
+  (define init-vars-block
+    (cons (car (car expanded-vs))
+          (append (for/list ([var (set-subtract vars read-vars)])
+      `(:= ,var '())) (cdr (car expanded-vs)))))
+  (list* read-block init-vars-block (cdr expanded-vs)))
+  
+  
+
+
 
 ;####################################################################
 ;                             TESTS

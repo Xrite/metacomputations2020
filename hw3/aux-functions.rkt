@@ -89,13 +89,23 @@
 (define (program-points program)
   (map car (cdr program)))
 
-(define blocks-in-pending '())
+;(define blocks-in-pending '())
 
-(define (reset-blocks-in-pending) (set! blocks-in-pending '()))
+;(define (reset-blocks-in-pending) (set! blocks-in-pending '()))
 
-(define (add-to-blocks-in-pending bb) (set! blocks-in-pending (if (member bb blocks-in-pending) blocks-in-pending (cons bb blocks-in-pending))))
+;(define (add-to-blocks-in-pending bb) (set! blocks-in-pending (if (member bb blocks-in-pending) blocks-in-pending (cons bb blocks-in-pending))))
 
-(define (find-blocks-in-pending) blocks-in-pending)
+;(define (find-blocks-in-pending) blocks-in-pending)
+
+(define (find-blocks-in-pending program division)
+  (define pps (for/fold ([pps (set (initial-point program))])
+            ([bb (cdr program)])
+    (let ([instr (last bb)])
+      (match instr
+        [`(if ,exp ,pp1 ,pp2) #:when (not (static-exp? division exp)) (values (set-union pps (set pp1 pp2)))]
+        [_ (values pps)]))))
+  (set-map pps (lambda (pp) (lookup-block pp program))))
+  ;'((next (:= ptr (+ ptr 1)) (goto loop)) (jump (:= ptr (find-instruction Q next-label)) (goto loop)) (init (:= ptr 0) (:= Left '()) (goto loop))))
 
 (define (vars-in-exp exp division)
   (cond
