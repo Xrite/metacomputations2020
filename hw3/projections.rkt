@@ -1,0 +1,43 @@
+#lang racket
+(require "mix.rkt" "tm-flowchart.rkt" "flowchart.rkt")
+
+(define (first-projection_tm Q)
+  (relabel (mix_racket tm-int tm-int-division (hash 'Q Q))))
+
+(define (first-projection_flowchart source)
+  (define renamed-flowchart-int (add-suffix flowchart-int '_fc-int))
+  (define renamed-flowchart-int-division (add-suffix-to-division flowchart-int-division '_fc-int))
+  (define variables-source (all-variables source))
+  (define read-variables-source (read-variables source))
+  (define with-vs (relabel (mix_racket renamed-flowchart-int renamed-flowchart-int-division (hash 'program_fc-int source))))
+  (unvs with-vs variables-source read-variables-source 'vs_fc-int))
+
+(define (second-projection_tm)
+  (define renamed-tm-int (add-suffix tm-int '_tm-int))
+  (define renamed-tm-int-division (add-suffix-to-division tm-int-division '_tm-int))
+  (define renamed-mix_flowchart (add-suffix mix_flowchart '_mix-fc))
+  (define renamed-mix_flowchart-division (add-suffix-to-division mix_flowchart-division '_mix-fc))
+  (define vars-tm-int (set->list (add-suffix-to-division tm-int-division '_tm-int)))
+  (define read-vars-tm-int (read-variables renamed-tm-int))
+  (define with-vs (relabel (mix_racket renamed-mix_flowchart renamed-mix_flowchart-division (hash 'program_mix-fc renamed-tm-int 'division_mix-fc renamed-tm-int-division))))
+  (unvs with-vs vars-tm-int '(Q_tm-int) 'vs_mix-fc))
+  ;with-vs)
+
+(define (second-projection_flowchart)
+  (define renamed-fc-int (add-suffix flowchart-int '_fc-int))
+  (define renamed-fc-int-division (add-suffix-to-division flowchart-int-division '_fc-int))
+  (define renamed-mix_fc (add-suffix mix_flowchart '_mix-fc))
+  (define renamed-mix_fc-division (add-suffix-to-division mix_flowchart-division '_mix-fc))
+  (define vars-fc-int (set->list (add-suffix-to-division flowchart-int-division '_fc-int)))
+  (define read-vars-fc-int (read-variables renamed-fc-int))
+  (define with-vs (relabel (mix_racket renamed-mix_fc renamed-mix_fc-division (hash 'program_mix-fc renamed-fc-int 'division_mix-fc renamed-fc-int-division))))
+  (unvs with-vs vars-fc-int '(program_fc-int) 'vs_mix-fc))
+
+(define (compile_tm source)
+  (relabel (int (second-projection_tm) `(,source))))
+
+(define (compile_flowchart source)
+  (define vars (all-variables source))
+  (define read-vars (read-variables source))
+  (define with-vs (relabel (int (second-projection_flowchart) `(,source))))
+  (unvs with-vs vars read-vars 'vs_fc-int))

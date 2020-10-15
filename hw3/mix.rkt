@@ -2,6 +2,8 @@
 
 (require "tm-flowchart.rkt" "flowchart.rkt" "aux-functions.rkt" rackunit)
 
+(provide (all-defined-out))
+
 
 (define (mix_racket program division vs0)
   (define pp0 (initial-point program))
@@ -212,7 +214,7 @@
 (define (rebuild-reduce exp vars)
   (cond
     [(symbol? exp) (if (set-member? vars exp)
-                       exp
+                       `(cons 'quote (list ,exp))
                        `',exp)]
     [(and (cons? exp) (equal? 'quote (car exp))) `',exp]
     [(cons? exp)
@@ -305,7 +307,12 @@
   
 ;####################################################################
 ;                            RENAMING
-;####################################################################  
+;####################################################################
+
+(define (symbol-append a b) (string->symbol (string-append (symbol->string a) (symbol->string b))))
+
+(define (add-suffix-to-division division suffix)
+  (for/set ([var division]) (symbol-append var suffix)))
 
 (define (all-variables program)
   (for/fold ([vars (cdr (car program))])
@@ -318,9 +325,11 @@
          [`(:= ,x ,_) (set-add in-ass x)]
          [_ in-ass])))))
 
+(define (read-variables program)
+  (cdr (car program)))
+
 (define (add-suffix program suffix)
   (define vars (all-variables program))
-  (define (symbol-append a b) (string->symbol (string-append (symbol->string a) (symbol->string b))))
   (define (rename-in-exp exp)
     (cond
       [(symbol? exp) (if (set-member? vars exp)
