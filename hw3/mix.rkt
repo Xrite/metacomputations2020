@@ -92,8 +92,9 @@
                            (if (equal? pp pp_dyn) pp_found find_pp))
     (error_pp_not_found (return (list 'error_pp_not_found pp_dyn)))
     (pp_found (:= pending (set-rest pending))
-              (:= marked (set-add marked (list pp vs)))
-              (:= code (initial-code pp vs))
+              ;(:= marked (set-add marked (list pp vs)))
+              (:= marked (set-add marked (list pp (retain-live vs (dict-ref live-vars pp)))))
+              (:= code (initial-code pp (retain-live vs (dict-ref live-vars pp))))
               (goto bb_while_cond))
     (bb_while_cond (if (empty? bb) bb_while_end bb_while_start))
     (bb_while_start (:= cmd (first bb))
@@ -153,7 +154,7 @@
 
 (define mix_flowchart-division (set 'program 'division 'bbs 'bb 'pp 'cmd 'op 'x 'exp 'next_pp 'pp_true 'pp_false 'debug 'live-vars 'xd 'bp))
 
-(define tm-int-division (set 'Q 'ptr 'instr 'op 'symb 'next-label))
+(define tm-int-division (set 'Q 'ptr 'instr 'cur_op 'symb 'next-label))
 
 (define flowchart-int-division (set 'program 'pp 'bb 'cmd 'op 'x 'exp 'next_pp 'pp_true 'pp_false 'debug))
 
@@ -196,38 +197,51 @@
 ;                            VS REMOVING
 ;####################################################################
 
-(define (remove-eval-exp-from-exp exp)
+(define (remove-eval-exp-from-exp exp vs-name)
   (cond
     [(symbol? exp) exp]
     [(and (cons? exp) (equal? 'quote (car exp))) exp]
-    [(match exp [`(eval-exp ,exp ,vs) #t] [_ #f]) (second (second exp))]
+    [(match exp [`(eval-exp ,exp ,vs) #:when (equal? vs vs-name) #t] [_ #f]) (second (second exp))]
     [(cons? exp)
-     (let ([tail (map (lambda (e) (remove-eval-exp-from-exp e)) (cdr exp))]
+     (let ([tail (map (lambda (e) (remove-eval-exp-from-exp e vs-name)) (cdr exp))]
            [head (car exp)])
        ;(display tail)
        (cons head tail))]
     [else exp]))
 
-(define (remove-reduce-from-exp exp)
+(define (rebuild-reduce exp vars)
+  (cond
+    [(symbol? exp) (if (set-member? vars exp)
+                       exp
+                       `',exp)]
+    [(and (cons? exp) (equal? 'quote (car exp))) `',exp]
+    [(cons? exp)
+     (let ([tail (map (lambda (e) (rebuild-reduce e vars)) (cdr exp))]
+           [head (car exp)])
+       ;(display tail)
+       (list* 'list `',head tail))]
+    [else `',exp]))
+
+(define (remove-reduce-from-exp exp vars vs-name)
   (cond
     [(symbol? exp) exp]
     [(and (cons? exp) (equal? 'quote (car exp))) exp]
-    [(match exp [`(reduce ,exp ,vs) #t] [_ #f]) (second (second exp))]
+    [(match exp [`(reduce ,exp ,vs) #:when (equal? vs vs-name) #t] [_ #f]) (rebuild-reduce (second (second exp)) vars)]
     [(cons? exp)
-     (let ([tail (map (lambda (e) (remove-reduce-from-exp e)) (cdr exp))]
+     (let ([tail (map (lambda (e) (remove-reduce-from-exp e vars vs-name)) (cdr exp))]
            [head (car exp)])
        ;(display tail)
        (cons head tail))]
     [else exp]))
 
-(define (expand-vs-in-exp exp vars)
+(define (expand-vs-in-exp exp vars vs-name)
   (cond
-    [(symbol? exp) (if (equal? exp 'vs)
-                       (cons 'list (map (lambda (v) `(cons ',v ,v)) vars))
+    [(symbol? exp) (if (equal? exp vs-name)
+                       (cons 'make-immutable-hash (list (cons 'list (map (lambda (v) `(cons ',v ,v)) vars))))
                        exp)]
     [(and (cons? exp) (equal? 'quote (car exp))) exp]
     [(cons? exp)
-     (let ([tail (map (lambda (e) (expand-vs-in-exp e vars)) (cdr exp))]
+     (let ([tail (map (lambda (e) (expand-vs-in-exp e vars vs-name)) (cdr exp))]
            [head (car exp)])
        ;(display tail)
        (cons head tail))]
@@ -240,7 +254,7 @@
        (car bb)
        (for/list ([instr (cdr bb)])
          (match instr
-           [`(:= vs (set-var vs ,var-name ,value)) `(:= ,(second var-name) ,value)]
+           [`(:= ,vs (set-var ,vs ,var-name ,value)) #:when (equal? vs vs-name) `(:= ,(second var-name) ,value)]
            [x x])))))
   (define removed-eval-exp
     (for/list ([bb removed-ass])
@@ -248,9 +262,9 @@
        (car bb)
        (for/list ([instr (cdr bb)])
          (match instr
-           [`(:= ,x ,exp) `(:= ,x ,(remove-eval-exp-from-exp exp))]
-           [`(if ,exp ,l ,r) `(if ,(remove-eval-exp-from-exp exp) ,l ,r)]
-           [`(return ,exp) `(return ,(remove-eval-exp-from-exp exp))]
+           [`(:= ,x ,exp) `(:= ,x ,(remove-eval-exp-from-exp exp vs-name))]
+           [`(if ,exp ,l ,r) `(if ,(remove-eval-exp-from-exp exp vs-name) ,l ,r)]
+           [`(return ,exp) `(return ,(remove-eval-exp-from-exp exp vs-name))]
            [x x])))))
   (define removed-reduce
     (for/list ([bb removed-eval-exp])
@@ -258,9 +272,9 @@
        (car bb)
        (for/list ([instr (cdr bb)])
          (match instr
-           [`(:= ,x ,exp) `(:= ,x ,(remove-reduce-from-exp exp))]
-           [`(if ,exp ,l ,r) `(if ,(remove-reduce-from-exp exp) ,l ,r)]
-           [`(return ,exp) `(return ,(remove-reduce-from-exp exp))]
+           [`(:= ,x ,exp) `(:= ,x ,(remove-reduce-from-exp exp vars vs-name))]
+           [`(if ,exp ,l ,r) `(if ,(remove-reduce-from-exp exp vars vs-name) ,l ,r)]
+           [`(return ,exp) `(return ,(remove-reduce-from-exp exp vars vs-name))]
            [x x])))))
    (define removed-vs-ass
     (for/list ([bb removed-reduce])
@@ -270,7 +284,7 @@
                   #:result (reverse res))
                  ([instr (cdr bb)])
          (match instr
-           [`(:= vs ,exp) (values (append res (for/list ([var vars]) `(:= ,var (dict-ref ,exp ',var)))))]
+           [`(:= ,vs ,exp) #:when (equal? vs vs-name) (values (append res (for/list ([var vars]) `(:= ,var (dict-ref ,exp ',var (void))))))]
            [x (values (cons x res))])))))
   (define expanded-vs
     (for/list ([bb removed-vs-ass])
@@ -278,19 +292,59 @@
        (car bb)
        (for/list ([instr (cdr bb)])
          (match instr
-           [`(:= ,x ,exp) `(:= ,x ,(expand-vs-in-exp exp vars))]
-           [`(if ,exp ,l ,r) `(if ,(expand-vs-in-exp exp vars) ,l ,r)]
-           [`(return ,exp) `(return ,(expand-vs-in-exp exp vars))]
+           [`(:= ,x ,exp) `(:= ,x ,(expand-vs-in-exp exp vars vs-name))]
+           [`(if ,exp ,l ,r) `(if ,(expand-vs-in-exp exp vars vs-name) ,l ,r)]
+           [`(return ,exp) `(return ,(expand-vs-in-exp exp vars vs-name))]
            [x x])))))
   (define read-block (cons 'read read-vars))
   (define init-vars-block
     (cons (car (car expanded-vs))
           (append (for/list ([var (set-subtract vars read-vars)])
-      `(:= ,var '())) (cdr (car expanded-vs)))))
+      `(:= ,var (void))) (cdr (car expanded-vs)))))
   (list* read-block init-vars-block (cdr expanded-vs)))
   
-  
+;####################################################################
+;                            RENAMING
+;####################################################################  
 
+(define (all-variables program)
+  (for/fold ([vars (cdr (car program))])
+            ([bb (cdr program)])
+    (set-union
+     vars
+     (for/fold ([in-ass null])
+               ([instr (cdr bb)])
+       (match instr
+         [`(:= ,x ,_) (set-add in-ass x)]
+         [_ in-ass])))))
+
+(define (add-suffix program suffix)
+  (define vars (all-variables program))
+  (define (symbol-append a b) (string->symbol (string-append (symbol->string a) (symbol->string b))))
+  (define (rename-in-exp exp)
+    (cond
+      [(symbol? exp) (if (set-member? vars exp)
+                         (symbol-append exp suffix)
+                         exp)]
+      [(and (cons? exp) (equal? 'quote (car exp))) exp]
+      [(cons? exp)
+       (let ([tail (map (lambda (e) (rename-in-exp e)) (cdr exp))]
+             [head (car exp)])
+         ;(display tail)
+         (cons head tail))]
+      [else exp]))
+  (cons
+   (cons (car (car program)) (for/list ([v (cdr (car program))]) (symbol-append v suffix)))
+   (for/list ([bb (cdr program)])
+     (cons
+      (car bb)
+      (for/list ([instr (cdr bb)])
+        (match instr
+          [`(:= ,x ,exp) `(:= ,(symbol-append x suffix) ,(rename-in-exp exp))]
+          [`(if ,exp ,l ,r) `(if ,(rename-in-exp exp) ,l ,r)]
+          [`(return ,exp) `(return ,(rename-in-exp exp))]
+          [x x]))))))
+    
 
 
 ;####################################################################
@@ -306,11 +360,11 @@
 
 
 (test-equal? "Check tm-int specialization using mix_racket"
-             (int (mix_racket tm-int (set 'Q 'ptr 'instr 'op 'symb 'next-label) (hash 'Q tm-example 'ptr 0 'symb '())) '((1 1 1 0 1 0 1)))
+             (int (mix_racket tm-int (set 'Q 'ptr 'instr 'cur_op 'symb 'next-label) (hash 'Q tm-example 'ptr 0 'symb '())) '((1 1 1 0 1 0 1)))
              '(1 1 0 1))
 
 (test-equal? "Check tm-int specialization using mix_flowchart"
-             (let* ([division (set 'Q 'ptr 'instr 'op 'symb 'next-label)]
+             (let* ([division (set 'Q 'ptr 'instr 'cur_op 'symb 'next-label)]
                     [vs0 (hash 'Q tm-example 'ptr 0)]
                     [specialized (int mix_flowchart `(,tm-int ,division ,vs0))])
                (int specialized '((1 1 1 0 1 0 1))))

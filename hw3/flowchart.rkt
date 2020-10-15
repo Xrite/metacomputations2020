@@ -89,7 +89,7 @@
     [(symbol? expr) (get-variable state expr)]
     [(and (cons? expr) (equal? 'quote (car expr))) (cadr expr)]
     [(cons? expr)
-     (let ([xd (displayln expr)]
+     (let (;[xd (displayln expr)]
            [tail (map (lambda (e) (eval-expression state e #:namespace namespace)) (cdr expr))]
            [head (car expr)])
        ;(display tail)
