@@ -1,7 +1,7 @@
 #lang racket
-(require "flowchart.rkt" rackunit)
+(require "flowchart.rkt")
 
-(provide tm-int tm-int-namespace tm-example)
+(provide tm-int tm-int-division tm-example)
 
 (define (get-instruction instructions i)
   (cond
@@ -16,10 +16,6 @@
       [(equal? (caar is) label) i]
       [else (impl (cdr is) (+ i 1))]))
   (impl instructions 0))
-
-(define-namespace-anchor tm-int-anchor)
-
-(define tm-int-namespace (namespace-anchor->namespace tm-int-anchor))
 
 (define tm-int
   '((read Q Right)
@@ -56,9 +52,7 @@
     (stop (return Right))
     (error (return (list 'syntaxerror: instr)))))
 
-;####################################################################
-; TESTS
-;####################################################################
+(define tm-int-division (set 'Q 'ptr 'instr 'cur_op 'symb 'next-label))
 
 (define tm-example
   '((0 if 0 goto 3)
@@ -66,4 +60,3 @@
     (2 goto 0)
     (3 write 1)))
 
-(test-equal? "Check tm-example" (int tm-int `(,tm-example (1 1 1 0 1 0 1))) '(1 1 0 1))

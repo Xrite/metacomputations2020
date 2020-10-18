@@ -4,8 +4,8 @@
 (require rackunit/text-ui)
 (require (only-in "aux-functions.rkt" aux-namespace))
 
-(provide int)
-
+(provide (combine-out int (prefix-out fc: (all-defined-out))))
+ 
 (define (validate-read read)
   (match read
     [(cons 'read _) 'ok]
@@ -98,68 +98,4 @@
 
 
 
-
-;####################################################################
-; TESTS
-;####################################################################
-
-
-(define eval-expression-tests
-  (test-suite
-   "Tests of eval-expression"
-   ;(test-case 
-   ; "empty expression"
-   ; (check-equal? (eval-expression (empty-state) '()) '())
-   (test-case
-    "single variable"
-    (define st (read-variables '(a b gg wp nested) '(0 (0 0 a) "gg" #f ((1 2) ((3 4) 5)))))
-    (check-equal? (eval-expression st 'a) 0)
-    (check-equal? (eval-expression st 'b) '(0 0 a))
-    (check-equal? (eval-expression st 'gg) "gg")
-    (check-equal? (eval-expression st 'wp) #f)
-    (check-equal? (eval-expression st 'nested) '((1 2) ((3 4) 5))))
-   (test-case
-    "arithmetics"
-    (define st (read-variables '(a b c d) '(0 1 2 3)))
-    (check-equal? (eval-expression st '(+ a b)) 1)
-    (check-equal? (eval-expression st '(+ a b c d)) 6)
-    (check-equal? (eval-expression st '(+ a (+ b (+ c d)))) 6)
-    (check-equal? (eval-expression st '(+ (+ a b) (+ c d) 1)) 7))
-   (test-case
-    "racket functions"
-    (define st (read-variables '(a b c d) '(0 1 2 "ggwp")))
-    (check-equal? (eval-expression st '(string-length "ggwp")) 4)
-    (check-equal? (eval-expression st '(string-length d)) 4)
-    (check-equal? (eval-expression st '(length '(0 1))) 2)
-    (check-equal? (eval-expression st '(length (quote (0 1)))) 2)
-    (check-equal? (eval-expression st '(length '(a b))) 2)
-    (check-equal? (eval-expression st '(+ (string-length "ggwp") (length '(a b)) (length (list 0 1)))) 8))
-   (test-case
-    "lambdas"
-    (define f (lambda (x y) (+ x y)))
-    (define st (read-variables '(a b plus) `(3 1 ,f)))
-    (check-equal? (eval-expression st '(apply plus (list a b))) 4))))
-
-(run-tests eval-expression-tests)
-
-(define test_state (read-variables '(a b c dd e28 F GGWP228) '(1 2 3 (0 0 0) "e28" F #f)))
-
-(check-equal? (eval-expression test_state '(+ a b)) 3)
-
-(check-equal? (eval-expression test_state '(length dd)) 3)
-
-(define find_name
-  '((read name namelist valuelist)
-    (search (if (equal? name (car namelist)) found cont))
-    (cont (:= valuelist (cdr valuelist))
-          (:= namelist (cdr namelist))
-          (goto search))
-    (found (return (car valuelist)))
-    ))
-
-(test-equal? "find_name TM test 1" (int find_name '(x (x y z) (1 2 3))) 1)
-
-(test-equal? "find_name TM test 2" (int find_name '(y (x y z) (1 2 3))) 2)
-
-(test-equal? "find_name TM test 3" (int find_name '(z (x y z) (1 2 3))) 3)
 
