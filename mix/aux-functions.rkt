@@ -10,12 +10,15 @@
 ;                  FUNCTIONS FOR MIX
 ;########################################################
 
+;Remove all static variables from read block
 (define (remove-static-reads read-block division)
   (cons 'read (filter (lambda (x) (not (set-member? division x))) (cdr read-block))))
 
+;Return initial program point in program
 (define (initial-point program)
   (first (second program)))
 
+;Find basic block instructions by label
 (define (lookup label program)
   (define (impl is)
     (cond
@@ -24,6 +27,7 @@
       [else (impl (cdr is))]))
   (impl (cdr program)))
 
+;Find basic block by label
 (define (lookup-block label program)
   (define (impl is)
     (cond
@@ -32,10 +36,13 @@
       [else (impl (cdr is))]))
   (impl (cdr program)))
 
+;Create empty basic block with the given label
 (define (initial-code pp vs) `(,(list pp vs)))
 
+;Check whether a variable is static by a division
 (define (static-var? division x) (set-member? division x))
 
+;Check whether an expression is static by a division
 (define (static-exp? division exp)
   (cond
     [(symbol? exp) (static-var? division exp)]
@@ -47,12 +54,15 @@
        tail)]
     [else #t]))
 
+;Set a value to the variable in the vs
 (define (set-var vs var val) (dict-set vs var val))
 
+;Add an instruction th the basic block
 (define (extend s e)
   ;(when (> (random) 0.9) (displayln (length s)))
   (reverse (cons e (reverse s))))
 
+;Reduce an expression using given static variables
 (define (reduce expr vs)
   (car
    (let proc ([exp expr])
@@ -73,6 +83,7 @@
               (cons (cons head tail) #f)))]
        [else (cons exp #t)]))))
 
+;Evaluate an expression using given static variable values
 (define (eval-exp exp vs) (eval (reduce exp vs) aux-namespace))
 
 ;(define (eval-exp exp vs)
@@ -86,6 +97,7 @@
 ;       (cons 'quote (apply (eval head aux-namespace) tail)))]
 ;    [else exp]))
 
+;Return a list of all program points
 (define (program-points program)
   (map car (cdr program)))
 
@@ -97,6 +109,7 @@
 
 ;(define (find-blocks-in-pending) blocks-in-pending)
 
+;Find blocks that could be added in pending
 (define (find-blocks-in-pending program division)
   (define pps (for/fold ([pps (set (initial-point program))])
             ([bb (cdr program)])
@@ -107,6 +120,7 @@
   (set-map pps (lambda (pp) (lookup-block pp program))))
   ;'((next (:= ptr (+ ptr 1)) (goto loop)) (jump (:= ptr (find-instruction Q next-label)) (goto loop)) (init (:= ptr 0) (:= Left '()) (goto loop))))
 
+;Return all static variables in the expression
 (define (vars-in-exp exp division)
   (cond
     [(symbol? exp) (if (static-var? division exp) (set exp) (set))]
@@ -118,6 +132,7 @@
        (apply set-union (cons (set) tail)))]
     [else (set)]))
   
+;Perform live varable analysis with given division
 (define (find-projections program division)
   (define (next partial)
     (dict-map partial
@@ -137,6 +152,7 @@
           x
           (fix next_x)))))
 
+;Retain live variables from vs
 (define (retain-live vs live-vars)
   (make-immutable-hash (filter (lambda (p) (set-member? live-vars (car p))) (dict->list vs))))
                   
@@ -153,12 +169,14 @@
 ;            FUNCTIONS FOR TM INTERPRETER
 ;########################################################
 
+;Retrun i-th instruction 
 (define (get-instruction instructions i)
   (cond
     [(< i 0) '(fail fail)]
     [(>= i (length instructions)) '(stop stop)]
     [else (list-ref instructions i)]))
 
+;Find instruction position by its label
 (define (find-instruction instructions label)
   (define (impl is i)
     (cond
