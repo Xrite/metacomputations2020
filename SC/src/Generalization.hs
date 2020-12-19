@@ -1,19 +1,17 @@
 {-# LANGUAGE FlexibleContexts #-}
+
 module Generalization where
 
-import Lang
-
-import Substitution
-import NameGen
-
 import Control.Monad.State
+import Lang
+import NameGen
+import Substitution
 
 data Generalization = Generalization Exp Substitution Substitution
   deriving (Show)
 
-
-mostSpecificGeneralization e1 e2 = do 
-    commonSubexpression <$> commonFunctor e1 e2
+mostSpecificGeneralization e1 e2 = do
+  commonSubexpression <$> commonFunctor e1 e2
 
 commonFunctor e1 e2
   | Var v1 <- e1, Var v2 <- e2, v1 == v2 = return $ Generalization (Var v1) empty empty
@@ -30,7 +28,6 @@ commonFunctor e1 e2
     v <- freshVar
     return $ Generalization (Var v) (single v e1) (single v e2)
 
-
 pairs (Generalization e s1 s2) = [(v1, v2) | v1 <- vars, v2 <- vars, v1 /= v2, assoc s1 v1 == assoc s1 v2, assoc s2 v1 == assoc s2 v2]
   where
     vars = domain s1
@@ -43,5 +40,5 @@ commonSubexpression gen@(Generalization e s1 s2) =
   case pair gen of
     Nothing -> gen
     Just (v1, v2) -> Generalization (apply (single v1 (Var v2)) e) (remove s1 v1) (remove s2 v1)
-  
+
 getMSG e1 e2 = runState (mostSpecificGeneralization e1 e2) (initialNameGen "v" "f")

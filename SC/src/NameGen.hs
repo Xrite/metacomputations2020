@@ -1,10 +1,11 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 module NameGen where
 
-import Lang
-import Control.Lens hiding ((:<), children, folding)
+import Control.Lens hiding (children, folding, (:<))
 import Control.Monad.State
+import Lang
 
 data NameGen = NameGen
   { _varsCnt :: Int,

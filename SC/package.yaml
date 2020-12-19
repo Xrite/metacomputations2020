@@ -25,6 +25,7 @@ dependencies:
 - containers
 - lens
 - pretty-simple
+- prettyprinter
 
 library:
   source-dirs: src

@@ -1,37 +1,34 @@
 {-# LANGUAGE FlexibleContexts #-}
+
 module Deforestration where
 
-import ProcessTree
-import Lang
-
+import Control.Monad
+import Control.Monad.State
+import Data.List
+import Data.Maybe
+--import Text.Pretty.Simple
+--import Debug.Pretty.Simple
+--import Debug.Trace
 import Decomp
 import Driving
-
-import Generalization
 import Embedding
+import Generalization
+import Lang
 import NameGen
-
+import ProcessTree
 import Substitution
-import Control.Monad.State
-import Control.Monad
-
-import Data.Maybe
-import Data.List
-import Debug.Trace
---import Text.Pretty.Simple
-import Debug.Pretty.Simple
 
 deforest :: (MonadTrans t, MonadState ProcessTree (t m), MonadState NameGen m) => t m ()
 deforest = do
   maybeNode <- popUnprocessedLeaf
   --traceM $ show maybeNode
   case maybeNode of
-      Nothing -> return ()
-      Just node -> processNode node >> deforest
+    Nothing -> return ()
+    Just node -> processNode node >> deforest
 
 processNode node = do
   foldSuccessful <- tryFold node
-  --when foldSuccessful (error "aaa") 
+  --when foldSuccessful (error "aaa")
   --traceM $ show foldSuccessful
   if foldSuccessful
     then return ()
@@ -40,7 +37,6 @@ processNode node = do
       if generalizationSuccessful
         then return ()
         else drive node
-
 
 tryFold n = do
   expr <- getExpression n
@@ -83,21 +79,20 @@ tryGeneralize node = do
       e <- getExpression node
       e' <- getExpression t
       Generalization eg subst1 subst2 <- lift $ mostSpecificGeneralization e e'
-      pTraceShowM $ (Generalization eg subst1 subst2)
+      --pTraceShowM $ (Generalization eg subst1 subst2)
       case renaming eg e' of
         Just _ -> do
           abstract node eg subst1
         Nothing -> do
-          traceM $ "eg " ++ show eg 
-          traceM $ "e' " ++ show eg 
-          abstract t eg subst2 
+          --traceM $ "eg " ++ show eg
+          --traceM $ "e' " ++ show eg
+          abstract t eg subst2
 
     abstract t eg subst = do
       let newExpr = Let (bindings subst) eg
       replaceNodeWith t newExpr
-      
 
 buildProcessTree program =
   let state = initialProcessTree program
-      nameGen = initialNameGen 
+      nameGen = initialNameGen
    in evalState (execStateT deforest state) (nameGen "dv" "df")

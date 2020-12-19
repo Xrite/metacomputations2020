@@ -1,21 +1,19 @@
 module Builtins where
 
-import Lang
+import Building
 import Data.List
 import Data.Maybe
-
+--import Debug.Trace
+import Lang
 import Substitution
-import Building
-
-import Debug.Trace
 
 evalBuiltin b args = case b of
-    BuiltinName "+" -> evalPlus args
-    BuiltinName ">" -> evalGreater args
+  BuiltinName "+" -> evalPlus args
+  BuiltinName ">" -> evalGreater args
 
 unfoldBuiltin b args = case b of
-    BuiltinName "+" -> Nothing --unfoldPlus args
-    BuiltinName ">" -> Nothing --unfoldGreater args
+  BuiltinName "+" -> Nothing --unfoldPlus args
+  BuiltinName ">" -> Nothing --unfoldGreater args
 
 fromChurch (Cons (ConsName "Z") []) = Just 0
 fromChurch (Cons (ConsName "S") [next]) = (1 +) <$> fromChurch next
@@ -23,29 +21,29 @@ fromChurch e = Nothing
 
 toChurch 0 = Cons (ConsName "Z") []
 toChurch n
-    | n == 0 = Cons (ConsName "Z") []
-    | n > 0 = Cons (ConsName "S") [toChurch (n - 1)]
-    | n < 0 = error $ "toChurch on " ++ show n
+  | n == 0 = Cons (ConsName "Z") []
+  | n > 0 = Cons (ConsName "S") [toChurch (n - 1)]
+  | n < 0 = error $ "toChurch on " ++ show n
 
-unfoldPlus [a, b] = do 
-    --traceM $ show a ++  " + " ++ show b
-    ra <- fromChurch a
-    rb <- fromChurch b
-    return $ toChurch (ra + rb)
+unfoldPlus [a, b] = do
+  --traceM $ show a ++  " + " ++ show b
+  ra <- fromChurch a
+  rb <- fromChurch b
+  return $ toChurch (ra + rb)
 unfoldPlus args = Nothing
 
 unfoldGreater [a, b] = do
-    ra <- fromChurch a
-    rb <- fromChurch b
-    if ra > rb
-        then return $ cons0 "True"
-        else return $ cons0 "False"
+  ra <- fromChurch a
+  rb <- fromChurch b
+  if ra > rb
+    then return $ cons0 "True"
+    else return $ cons0 "False"
 unfoldGreater args = Nothing
 
 evalPlus [a, b] = fromMaybe (error $ "+ on " ++ show [a, b]) $ do
-    ra <- fromChurch a
-    rb <- fromChurch b
-    return $ toChurch (ra + rb)
+  ra <- fromChurch a
+  rb <- fromChurch b
+  return $ toChurch (ra + rb)
 evalPlus args = error $ "+ on " ++ show args
 
 evalGreater [a, b] = fromMaybe (error $ "> on " ++ show [a, b]) $ do

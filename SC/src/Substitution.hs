@@ -1,10 +1,9 @@
 module Substitution where
-import Lang 
-
-import qualified Data.List as List
-import Data.Maybe
 
 import Control.Monad
+import qualified Data.List as List
+import Data.Maybe
+import Lang
 
 data Substitution = Substitution [(Variable, Exp)] deriving (Eq, Show)
 
@@ -21,8 +20,8 @@ assoc (Substitution s) v = lookup v s
 add (Substitution s) v e = Substitution $ (v, e) : s
 
 remove (Substitution s) v = case lookup v s of
-    Nothing -> Substitution s
-    Just e -> Substitution $ List.delete (v, e) s
+  Nothing -> Substitution s
+  Just e -> Substitution $ List.delete (v, e) s
 
 bindAll vs es = Substitution $ zip vs es
 
@@ -30,17 +29,19 @@ idSubst vs = bindAll vs (map Var vs)
 
 bindings (Substitution s) = s
 
+fromBindings bs = let (vs, es) = unzip bs in bindAll vs es
+
 domain (Substitution s) = map fst s
 
 --apply (Substitution s) exp = foldl (\e (v', e') -> substitute e v' e') exp s
 apply s exp = case exp of
-    Var v -> case assoc s v of
-        Nothing -> Var v
-        Just e -> e
-    Cons c es -> Cons c $ map (apply s) es
-    Call f es -> Call f $ map (apply s) es
-    Case e ps -> Case (apply s e) $ map (\(p', e') -> (p', apply s e')) ps
-    Let vs e0 -> Let (map (\(v, e) -> (v, apply s e)) vs) (apply s e0)
+  Var v -> case assoc s v of
+    Nothing -> Var v
+    Just e -> e
+  Cons c es -> Cons c $ map (apply s) es
+  Call f es -> Call f $ map (apply s) es
+  Case e ps -> Case (apply s e) $ map (\(p', e') -> (p', apply s e')) ps
+  Let vs e0 -> Let (map (\(v, e) -> (v, apply s e)) vs) (apply s e0)
 
 substitute exp var to = case exp of
   Var v -> if v == var then to else Var v
@@ -76,4 +77,3 @@ isRenaming e1 e2 = isJust $ renaming e1 e2
 fromRenaming ren = let (from, to) = unzip ren in bindAll from (map Var to)
 
 invRenaming ren = let (from, to) = unzip ren in zip to from
-

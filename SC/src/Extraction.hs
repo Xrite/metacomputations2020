@@ -1,20 +1,23 @@
 {-# LANGUAGE FlexibleContexts #-}
+
 module Extraction where
 
-import Lang
-import ProcessTree
-import Decomp
-import Substitution
-import NameGen
-import Control.Monad.State
-import Debug.Trace
+--import Debug.Trace
 
 import Builtins
+import Control.Monad.State
+import Decomp
+import Lang
+import NameGen
+import ProcessTree
+import Substitution
 
 data Signatures = Signatures [(Node, Exp)]
 
-addSignature (Signatures ss) node exp = Signatures $ (node, exp):ss
+addSignature (Signatures ss) node exp = Signatures $ (node, exp) : ss
+
 getSignature (Signatures ss) node = lookup node ss
+
 emptySignatures = Signatures []
 
 extract sigs node = do
@@ -27,10 +30,9 @@ extract sigs node = do
       let (es, defs) = unzip rest
       let vars = map fst vs
       return (Let (zip vars es) e0, def0 ++ concat defs)
-
     extractExpr expr = case decompose expr of
-      Observable (Var v) -> 
-          return (Var v, [])
+      Observable (Var v) ->
+        return (Var v, [])
       Observable (Cons c _) -> do
         children_es <- mapM (extract sigs) =<< getChildren node
         let (es, defs) = unzip children_es
@@ -51,15 +53,15 @@ extract sigs node = do
               f' <- lift freshFunc
               vs <- lift $ freshVars (length dom)
               let subst = bindAll dom (map Var vs)
-              traceM $ show dom
+              --traceM $ show dom
               let sigs' = addSignature sigs node (Call (Func f') (map Var dom))
               [(e, defs)] <- mapM (extract sigs') =<< getChildren node
               let def = Definition f' vs (apply subst e)
               --let def = Definition f' vs e
-              return (Call (Func f') (map Var dom), def:defs)
+              return (Call (Func f') (map Var dom), def : defs)
         let mkFold base ren = do
               let Just sig = getSignature sigs base
-              traceM $ show sig
+              --traceM $ show sig
               return (apply (fromRenaming $ invRenaming ren) sig, [])
         let mkOtherwise = do
               extract sigs . head =<< getChildren node
@@ -96,6 +98,8 @@ extract sigs node = do
         return (Case e0 newps, def0 ++ concat defs)
       x -> error $ show x
 
-extractFromProcessTree processTree = evalStateT (evalStateT (extract emptySignatures 0) processTree) (nameGen "ev" "ef")
-    where
-        nameGen = initialNameGen 
+extractFromProcessTree processTree = do
+  (e, defs) <- evalStateT (evalStateT (extract emptySignatures 0) processTree) (nameGen "ev" "ef")
+  return $ Program e defs
+  where
+    nameGen = initialNameGen

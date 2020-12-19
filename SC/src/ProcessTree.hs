@@ -8,15 +8,14 @@ import Control.Lens hiding (children, folding, (:<))
 import Control.Monad.State
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
-import Data.Maybe
 import Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
 import qualified Data.List as List
+import Data.Maybe
+--import Debug.Trace
 import Lang
 import NameGen
 import Substitution
-
-import Debug.Trace
 
 type Node = Int
 
@@ -93,7 +92,6 @@ getAncestors node = do
   case p of
     Just pNode -> (pNode :) <$> getAncestors pNode
     Nothing -> return []
-  
 
 getParent node = fromMaybe (error $ "Invalid node " ++ show node) <$> preuse (nodes . ix node . parent)
 
@@ -134,14 +132,14 @@ replaceNodeWith node expr = do
   nodes %= IntMap.insert node (newNode parent)
   unprocessedLeaves %= IntSet.insert node
   where
-    newNode parent = NodeData {
-      _expression = expr,
-      _parent = parent,
-      _children = [],
-      _foldingTo = Nothing,
-      _foldings = []
-    }
-
+    newNode parent =
+      NodeData
+        { _expression = expr,
+          _parent = parent,
+          _children = [],
+          _foldingTo = Nothing,
+          _foldings = []
+        }
 
 newtype Env a = Env {runEnv :: (StateT ProcessTree (State NameGen) a)}
   deriving (Functor, Applicative, Monad, MonadState ProcessTree)

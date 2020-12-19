@@ -23,7 +23,7 @@ of_ c vs body = modify (++ [(pat, body)])
 
 var v = Var (VarName v)
 
-app f args 
+app f args
   | elem f builtinsList = Call (Builtin (BuiltinName f)) args
   | otherwise = Call (Func (FuncName f)) args
 
@@ -35,18 +35,13 @@ cons c args = Cons (ConsName c) args
 
 cons0 c = cons c []
 
-example = mkProgram $ do
-  define "not" ["x"] $
-    case_ (var "x") $ do
-      of_ "True" [] $ cons0 "False"
-      of_ "False" [] $ cons0 "True"
-  define "and" ["x", "y"] $
-    case_ (var "x") $ do
-      of_ "True" [] $
-        case_ (var "y") $ do
-          of_ "True" [] $ cons0 "True"
-          of_ "False" [] $ cons0 "False"
-      of_ "False" [] $ cons0 "False"
-  return $
-    app "and" [cons0 "True", app "not" [cons0 "False"]]
+zero = cons0 "Z"
+one = cons "S" [zero]
+two = cons "S" [one]
+three = cons "S" [two]
 
+true = cons0 "True"
+false = cons0 "False"
+
+makeStr [] = cons0 "Nil"
+makeStr (x:xs) = cons "Cons" [cons0  [x], makeStr xs]

@@ -1,10 +1,9 @@
 module Decomp where
 
+import Builtins
 import Control.Applicative
 import Data.Maybe
 import Lang
-import Builtins
-
 
 data Decomposition
   = Observable Exp
@@ -13,13 +12,15 @@ data Decomposition
 
 data Context
   = ContextTop
-  | ContextApp Context Exp
   | ContextCase Context [(Pattern, Exp)]
   deriving (Eq, Show)
 
 up (exp, ctx) = case ctx of
   ContextTop -> (exp, ctx)
   ContextCase ctx' ps -> ((Case exp ps), ctx')
+
+push ContextTop ps = ContextCase ContextTop ps
+push (ContextCase ctx' ps') ps = ContextCase (push ctx' ps) ps'
 
 decompose exp = fromMaybe (error $ "Unable to decompose expression " ++ show exp) $ maybeObs <|> maybeCon
   where
@@ -36,7 +37,7 @@ decompose exp = fromMaybe (error $ "Unable to decompose expression " ++ show exp
 
     con exp
       | Just r <- red exp = Just (r, ContextTop)
-      | Case e ps <- exp, Just (r, ctx) <- con e = Just (r, ContextCase ctx ps)
+      | Case e ps <- exp, Just (r, ctx) <- con e = Just (r, push ctx ps)
       | otherwise = Nothing
 
     red exp
