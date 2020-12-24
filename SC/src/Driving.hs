@@ -52,7 +52,7 @@ driving expr defs = case decompose expr of
 drive :: (MonadTrans t, MonadState ProcessTree (t m), MonadState NameGen m) => Int -> t m ()
 drive node = do
   expr <- getExpression node
-  pTraceM $ "Driving " ++ show expr
+  --pTraceM $ "Driving " ++ show expr
   defs <- getDefinitions
   next <- lift $ driving expr defs
   addChildren node next

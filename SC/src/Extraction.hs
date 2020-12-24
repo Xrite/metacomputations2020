@@ -12,6 +12,8 @@ import NameGen
 import ProcessTree
 import Substitution
 
+import Data.List
+
 data Signatures = Signatures [(Node, Exp)]
 
 addSignature :: Signatures -> Node -> Exp -> Signatures
@@ -53,16 +55,19 @@ extract sigs node = do
         extract sigs . head =<< getChildren node
       WithContext (Call (Func f) args) ctx -> do
         let mkFunc fds = do
+              let ids ss = filter (\(v, v') -> v == v') ss
+              let allIds = foldl1 intersect (map ids (map snd fds))
               let (_, dom) = unzip . snd . head $ fds
+              let dom' = dom \\ (map fst allIds)
               f' <- lift freshFunc
-              vs <- lift $ freshVars (length dom)
-              let subst = bindAll dom (map Var vs)
+              vs <- lift $ freshVars (length dom')
+              let subst = bindAll dom' (map Var vs)
               --traceM $ show dom
-              let sigs' = addSignature sigs node (Call (Func f') (map Var dom))
+              let sigs' = addSignature sigs node (Call (Func f') (map Var dom'))
               [(e, defs)] <- mapM (extract sigs') =<< getChildren node
               let def = Definition f' vs (apply subst e)
               --let def = Definition f' vs e
-              return (Call (Func f') (map Var dom), def : defs)
+              return (Call (Func f') (map Var dom'), def : defs)
         let mkFold base ren = do
               let Just sig = getSignature sigs base
               --traceM $ show sig
