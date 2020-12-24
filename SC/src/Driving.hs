@@ -49,7 +49,7 @@ driving expr defs = case decompose expr of
 
 drive node = do
   expr <- getExpression node
-  pTraceM $ "Driving " ++ show expr
+  --pTraceM $ "Driving " ++ show expr
   defs <- getDefinitions
   next <- lift $ driving expr defs
   addChildren node next

@@ -10,10 +10,12 @@ import Substitution
 evalBuiltin b args = case b of
   BuiltinName "+" -> evalPlus args
   BuiltinName ">" -> evalGreater args
+  BuiltinName "*" -> evalMult args
 
 unfoldBuiltin b args = case b of
-  BuiltinName "+" -> Nothing --unfoldPlus args
-  BuiltinName ">" -> Nothing --unfoldGreater args
+  BuiltinName "+" -> unfoldPlus args
+  BuiltinName ">" -> unfoldGreater args
+  BuiltinName "*" -> unfoldMult args
 
 fromChurch (Cons (ConsName "Z") []) = Just 0
 fromChurch (Cons (ConsName "S") [next]) = (1 +) <$> fromChurch next
@@ -40,6 +42,12 @@ unfoldGreater [a, b] = do
     else return $ cons0 "False"
 unfoldGreater args = Nothing
 
+unfoldMult [a, b] = do
+  ra <- fromChurch a
+  rb <- fromChurch b
+  return $ toChurch (ra * rb)
+unfoldMult args = Nothing
+
 evalPlus [a, b] = fromMaybe (error $ "+ on " ++ show [a, b]) $ do
   ra <- fromChurch a
   rb <- fromChurch b
@@ -54,6 +62,12 @@ evalGreater [a, b] = fromMaybe (error $ "> on " ++ show [a, b]) $ do
     then return $ cons0 "True"
     else return $ cons0 "False"
 evalGreater args = error $ "+ on " ++ show args
+
+evalMult [a, b] = fromMaybe (error $ "+ on " ++ show [a, b]) $ do
+  ra <- fromChurch a
+  rb <- fromChurch b
+  return $ toChurch (ra * rb)
+evalMult args = error $ "+ on " ++ show args
 
 unfold defs f args = case find (\(Definition f' _ _) -> f == f') defs of
   Nothing -> error $ "Can't unfold. No such function " ++ show f

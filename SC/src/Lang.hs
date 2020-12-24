@@ -78,4 +78,4 @@ instance Pretty Program where
 instance Pretty Definition where
   pretty (Definition f args e) = pretty f <> tupled (map pretty args) <+> pretty "=" <+> pretty e
 
-builtinsList = ["<", "+", ">"]
+builtinsList = ["*", "+", ">"]

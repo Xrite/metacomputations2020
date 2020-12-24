@@ -18,7 +18,7 @@ example = mkProgram $ do
   return $
     app "and" [app "not" [var "x"], app "not" [cons0 "False"]]
 
-taskSumBuiltin = mkProgram $ do
+taskSum = mkProgram $ do
   define "sum" ["s", "x"] $
     case_ (var "s") $ do
       of_ "Nil" [] $ var "x"
@@ -31,54 +31,14 @@ taskSumBuiltin = mkProgram $ do
     app "sum" [app "upto" [one, var "z"], zero]
     
 taskUpto = mkProgram $ do
-  define "gt" ["x", "y"] $
-    case_ (var "x") $ do
-      of_ "Z" [] $ false
-      of_ "S" ["x'"] $ case_ (var "y") $ do
-          of_ "Z" [] $ true
-          of_ "S" ["y'"] $ app "gt" [var "x'", var "y'"]
-  define "add" ["s", "y"] $
-    case_ (var "s") $ do
-      of_ "Z" [] $ var "y"
-      of_ "S" ["x"] $ cons "S" [app "add" [var "x", var "y"]]
-  define "addAcc" ["s", "y"] $ 
-    case_ (var "s") $ do
-      of_ "Z" [] $ var "y"
-      of_ "S" ["x"] $ app "addAcc" [var "x", cons "S" [var "y"]]
   define "upto" ["m", "n"] $
-    case_ (app "gt" [var "m", var "n"]) $ do
+    case_ (app ">" [var "m", var "n"]) $ do
       of_ "True" [] $ cons0 "Nil"
-      of_ "False" [] $ cons "Cons" [var "m", app "upto" [app "addAcc" [var "m", one], var "n"]]
+      of_ "False" [] $ cons "Cons" [var "m", app "upto" [app "+" [var "m", one], var "n"]]
   return $
     app "upto" [one, var "z"]
 
-taskSum = mkProgram $ do
-  define "gt" ["x", "y"] $
-    case_ (var "x") $ do
-      of_ "Z" [] $ false
-      of_ "S" ["x'"] $ case_ (var "y") $ do
-          of_ "Z" [] $ true
-          of_ "S" ["y'"] $ app "gt" [var "x'", var "y'"]
-  define "add" ["s", "y"] $
-    case_ (var "s") $ do
-      of_ "Z" [] $ var "y"
-      of_ "S" ["x"] $ cons "S" [app "add" [var "x", var "y"]]
-  define "addAcc" ["s", "y"] $ 
-    case_ (var "s") $ do
-      of_ "Z" [] $ var "y"
-      of_ "S" ["x"] $ app "addAcc" [var "x", cons "S" [var "y"]]
-  define "sum" ["s", "x"] $
-    case_ (var "s") $ do
-      of_ "Nil" [] $ var "x"
-      of_ "Cons" ["y", "ys"] $ app "sum" [var "ys", app "addAcc" [var "x", var "y"]]
-  define "upto" ["m", "n"] $
-    case_ (app "gt" [var "m", var "n"]) $ do
-      of_ "True" [] $ cons0 "Nil"
-      of_ "False" [] $ cons "Cons" [var "m", app "upto" [app "addAcc" [var "m", one], var "n"]]
-  return $
-    app "sum" [app "upto" [one, var "z"], zero]
-
-taskSumDoubleBuiltin = mkProgram $ do
+taskSumDouble = mkProgram $ do
   define "sum" ["s", "x"] $
     case_ (var "s") $ do
       of_ "Nil" [] $ var "x"
@@ -94,33 +54,7 @@ taskSumDoubleBuiltin = mkProgram $ do
   return $
     app "sum" [app "double" [app "upto" [one, var "z"]], zero]
 
-taskSumDouble = mkProgram $ do
-  define "gt" ["x", "y"] $
-    case_ (var "x") $ do
-      of_ "Z" [] $ false
-      of_ "S" ["x'"] $ case_ (var "y") $ do
-          of_ "Z" [] $ true
-          of_ "S" ["y'"] $ app "gt" [var "x'", var "y'"]
-  define "add" ["s", "y"] $
-    case_ (var "s") $ do
-      of_ "Z" [] $ var "y"
-      of_ "S" ["x"] $ cons "S" [app "add" [var "x", var "y"]]
-  define "sum" ["s", "x"] $
-    case_ (var "s") $ do
-      of_ "Nil" [] $ var "x"
-      of_ "Cons" ["y", "ys"] $ app "sum" [var "ys", app "add" [var "x", var "y"]]
-  define "upto" ["m", "n"] $
-    case_ (app "gt" [var "m", var "n"]) $ do
-      of_ "True" [] $ cons0 "Nil"
-      of_ "False" [] $ cons "Cons" [var "m", app "upto" [app "add" [var "m", one], var "n"]]
-  define "double" ["s"] $
-    case_ (var "s") $ do
-      of_ "Nil" [] $ cons0 "Nil"
-      of_ "Cons" ["x", "xs"] $ cons "Cons" [app "add" [var "x", var "x"], app "double" [var "xs"]]
-  return $
-    app "sum" [app "double" [app "upto" [one, var "z"]], zero]
-
-taskSumSquaresBuiltin = mkProgram $ do
+taskSumSquares = mkProgram $ do
   define "sum" ["s", "x"] $
     case_ (var "s") $ do
       of_ "Nil" [] $ var "x"
@@ -132,7 +66,7 @@ taskSumSquaresBuiltin = mkProgram $ do
   define "squares" ["s"] $
     case_ (var "s") $ do
       of_ "Nil" [] $ cons0 "Nil"
-      of_ "Cons" ["x", "xs"] $ cons "Cons" [appU "*" [var "x", var "x"], app "squares" [var "xs"]]
+      of_ "Cons" ["x", "xs"] $ cons "Cons" [app "*" [var "x", var "x"], app "squares" [var "xs"]]
   return $
     app "sum" [app "squares" [app "upto" [one, var "z"]], zero]
 
@@ -388,6 +322,11 @@ taskKMP_ABA = mkProgram $ do
   defineKMPUtils
   return $
     app "match" [cons "Cons" [cons0 "A", cons "Cons" [cons0 "B", cons "Cons" [cons0 "A", cons0 "Nil"]]], var "str"]
+
+taskKMP_ABACABA = mkProgram $ do
+  defineKMPUtils
+  return $
+    app "match" [makeStr "ABACABA", var "str"]
 
 
 
