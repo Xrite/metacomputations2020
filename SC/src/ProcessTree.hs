@@ -40,6 +40,7 @@ makeLenses ''ProcessTree
 
 makeLenses ''NodeData
 
+initialProcessTree :: Program -> ProcessTree
 initialProcessTree (Program e defs) =
   ProcessTree
     { _unprocessedLeaves = IntSet.singleton 0,
@@ -65,9 +66,11 @@ popUnprocessedLeaf = do
     Nothing -> return Nothing
     Just (a, _) -> return $ Just a
 
+getExpression :: MonadState ProcessTree f => Int -> f Exp
 getExpression node =
   fromMaybe (error $ "Invalid node " ++ show node) <$> preuse (nodes . ix node . expression)
 
+addOneChildren :: MonadState ProcessTree m => Int -> Exp -> m ()
 addOneChildren node expr = do
   cnt <- use counter
   nodes %= IntMap.insert cnt newNode
@@ -84,8 +87,10 @@ addOneChildren node expr = do
           _foldings = []
         }
 
+addChildren :: (Foldable t, MonadState ProcessTree m) => Int -> t Exp -> m ()
 addChildren node exprs = mapM_ (addOneChildren node) exprs
 
+getAncestors :: MonadState ProcessTree m => Node -> m [Node]
 getAncestors node = do
   nodeData <- fromMaybe (error $ "Invalid node" ++ show node) <$> preuse (nodes . ix node)
   let p = nodeData ^. parent
@@ -93,21 +98,27 @@ getAncestors node = do
     Just pNode -> (pNode :) <$> getAncestors pNode
     Nothing -> return []
 
+getParent :: MonadState ProcessTree f => Int -> f (Maybe Node)
 getParent node = fromMaybe (error $ "Invalid node " ++ show node) <$> preuse (nodes . ix node . parent)
 
+getChildren :: MonadState ProcessTree f => Int -> f [Node]
 getChildren node = fromMaybe (error $ "Invalid node " ++ show node) <$> preuse (nodes . ix node . children)
 
+getFoldings :: MonadState ProcessTree f => Int -> f [(Node, [(Variable, Variable)])]
 getFoldings node = fromMaybe (error $ "Invalid node " ++ show node) <$> preuse (nodes . ix node . foldings)
 
+getFoldingTo :: MonadState ProcessTree f => Int -> f (Maybe (Node, [(Variable, Variable)]))
 getFoldingTo node = fromMaybe (error $ "Invalid node " ++ show node) <$> preuse (nodes . ix node . foldingTo)
 
 getDefinitions :: MonadState ProcessTree m => m [Definition]
 getDefinitions = use definitions
 
+foldTo :: MonadState ProcessTree m => Node -> Node -> [(Variable, Variable)] -> m ()
 foldTo node to subst = do
   nodes . ix node . foldingTo .= Just (to, subst)
   nodes . ix to . foldings %= ((node, subst) :)
 
+deleteSubtree :: MonadState ProcessTree m => Node -> m ()
 deleteSubtree node = do
   removeFolding
   removeFromUnprocessed
@@ -126,6 +137,7 @@ deleteSubtree node = do
     removeFromNodes = do
       nodes %= IntMap.delete node
 
+replaceNodeWith :: MonadState ProcessTree m => Int -> Exp -> m ()
 replaceNodeWith node expr = do
   parent <- getParent node
   deleteSubtree node

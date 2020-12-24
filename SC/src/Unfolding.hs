@@ -6,7 +6,10 @@ import Data.List
 import Lang
 import NameGen
 import Substitution
+import Control.Monad.State
+import NameGen
 
+renameUnfold :: (Foldable t, MonadState NameGen m) => t Definition -> Function -> [Exp] -> m Exp
 renameUnfold defs f args = case find (\(Definition f' _ _) -> f == f') defs of
   Nothing -> error $ "Can't unfold. No such function " ++ show f
   Just (Definition f' vs e) -> do

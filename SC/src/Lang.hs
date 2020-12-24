@@ -53,6 +53,7 @@ instance Pretty Exp where
           start = pretty "let" <+> hsep (punctuate comma (map printBinding bs)) <+> pretty "in"
        in nest 4 (vsep [start, pretty e])
 
+tupledOrNone :: Pretty a => [a] -> Doc ann
 tupledOrNone es = case es of
   [] -> pretty ""
   _ -> tupled (map pretty es)

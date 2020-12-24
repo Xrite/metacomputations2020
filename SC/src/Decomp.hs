@@ -15,13 +15,16 @@ data Context
   | ContextCase Context [(Pattern, Exp)]
   deriving (Eq, Show)
 
+up :: (Exp, Context) -> (Exp, Context)
 up (exp, ctx) = case ctx of
   ContextTop -> (exp, ctx)
   ContextCase ctx' ps -> ((Case exp ps), ctx')
 
+push :: Context -> [(Pattern, Exp)] -> Context
 push ContextTop ps = ContextCase ContextTop ps
 push (ContextCase ctx' ps') ps = ContextCase (push ctx' ps) ps'
 
+decompose :: Exp -> Decomposition
 decompose exp = fromMaybe (error $ "Unable to decompose expression " ++ show exp) $ maybeObs <|> maybeCon
   where
     maybeObs = Observable <$> obs exp
@@ -46,6 +49,7 @@ decompose exp = fromMaybe (error $ "Unable to decompose expression " ++ show exp
       | Case e ps <- exp, Just _ <- obs e = Just exp
       | otherwise = Nothing
 
+compose :: Decomposition -> Exp
 compose (Observable e) = e
 compose (WithContext e ctx) = case ctx of
   ContextTop -> e

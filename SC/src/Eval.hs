@@ -5,6 +5,7 @@ import Data.List (find)
 import Lang
 import Substitution
 
+eval :: Program -> Exp
 eval (Program e defs) = eval e
   where
     eval exp = case exp of
@@ -29,6 +30,7 @@ eval (Program e defs) = eval e
             e' = apply (fromBindings vs') e
          in eval e'
 
+evalWithVars :: Substitution -> Program -> Exp
 evalWithVars subst (Program e defs) = eval $ Program e' defs'
   where
     e' = apply subst e

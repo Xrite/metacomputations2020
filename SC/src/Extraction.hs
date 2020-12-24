@@ -14,12 +14,16 @@ import Substitution
 
 data Signatures = Signatures [(Node, Exp)]
 
+addSignature :: Signatures -> Node -> Exp -> Signatures
 addSignature (Signatures ss) node exp = Signatures $ (node, exp) : ss
 
+getSignature :: Signatures -> Node -> Maybe Exp
 getSignature (Signatures ss) node = lookup node ss
 
+emptySignatures :: Signatures
 emptySignatures = Signatures []
 
+extract :: (MonadTrans t, MonadState NameGen m, MonadFail (t m), MonadState ProcessTree (t m)) => Signatures -> Int -> t m (Exp, [Definition])
 extract sigs node = do
   e <- getExpression node
   extractExpr e
@@ -98,6 +102,7 @@ extract sigs node = do
         return (Case e0 newps, def0 ++ concat defs)
       x -> error $ show x
 
+extractFromProcessTree :: MonadFail m => ProcessTree -> m Program
 extractFromProcessTree processTree = do
   (e, defs) <- evalStateT (evalStateT (extract emptySignatures 0) processTree) (nameGen "ev" "ef")
   return $ Program e defs

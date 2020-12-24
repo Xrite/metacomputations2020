@@ -7,26 +7,31 @@ import Data.Maybe
 import Lang
 import Substitution
 
+evalBuiltin :: Builtin -> [Exp] -> Exp
 evalBuiltin b args = case b of
   BuiltinName "+" -> evalPlus args
   BuiltinName ">" -> evalGreater args
   BuiltinName "*" -> evalMult args
 
+unfoldBuiltin :: Builtin -> [Exp] -> Maybe Exp
 unfoldBuiltin b args = case b of
   BuiltinName "+" -> unfoldPlus args
   BuiltinName ">" -> unfoldGreater args
   BuiltinName "*" -> unfoldMult args
 
+fromChurch :: Num a => Exp -> Maybe a
 fromChurch (Cons (ConsName "Z") []) = Just 0
 fromChurch (Cons (ConsName "S") [next]) = (1 +) <$> fromChurch next
 fromChurch e = Nothing
 
+toChurch :: (Num a, Ord a, Show a) => a -> Exp
 toChurch 0 = Cons (ConsName "Z") []
 toChurch n
   | n == 0 = Cons (ConsName "Z") []
   | n > 0 = Cons (ConsName "S") [toChurch (n - 1)]
   | n < 0 = error $ "toChurch on " ++ show n
 
+unfoldPlus :: [Exp] -> Maybe Exp
 unfoldPlus [a, b] = do
   --traceM $ show a ++  " + " ++ show b
   ra <- fromChurch a
@@ -34,6 +39,7 @@ unfoldPlus [a, b] = do
   return $ toChurch (ra + rb)
 unfoldPlus args = Nothing
 
+unfoldGreater :: [Exp] -> Maybe Exp
 unfoldGreater [a, b] = do
   ra <- fromChurch a
   rb <- fromChurch b
@@ -42,18 +48,21 @@ unfoldGreater [a, b] = do
     else return $ cons0 "False"
 unfoldGreater args = Nothing
 
+unfoldMult :: [Exp] -> Maybe Exp
 unfoldMult [a, b] = do
   ra <- fromChurch a
   rb <- fromChurch b
   return $ toChurch (ra * rb)
 unfoldMult args = Nothing
 
+evalPlus :: [Exp] -> Exp
 evalPlus [a, b] = fromMaybe (error $ "+ on " ++ show [a, b]) $ do
   ra <- fromChurch a
   rb <- fromChurch b
   return $ toChurch (ra + rb)
 evalPlus args = error $ "+ on " ++ show args
 
+evalGreater :: [Exp] -> Exp
 evalGreater [a, b] = fromMaybe (error $ "> on " ++ show [a, b]) $ do
   --traceM $ show a ++  " > " ++ show b
   ra <- fromChurch a
@@ -63,12 +72,14 @@ evalGreater [a, b] = fromMaybe (error $ "> on " ++ show [a, b]) $ do
     else return $ cons0 "False"
 evalGreater args = error $ "+ on " ++ show args
 
+evalMult :: [Exp] -> Exp
 evalMult [a, b] = fromMaybe (error $ "+ on " ++ show [a, b]) $ do
   ra <- fromChurch a
   rb <- fromChurch b
   return $ toChurch (ra * rb)
 evalMult args = error $ "+ on " ++ show args
 
+unfold :: Foldable t => t Definition -> Function -> [Exp] -> Exp
 unfold defs f args = case find (\(Definition f' _ _) -> f == f') defs of
   Nothing -> error $ "Can't unfold. No such function " ++ show f
   Just (Definition f' vs e) ->
@@ -76,6 +87,7 @@ unfold defs f args = case find (\(Definition f' _ _) -> f == f') defs of
         e' = apply subst e
      in e'
 
+matchPattern :: Show b => [(Pattern, b)] -> Exp -> (Pattern, b)
 matchPattern patterns cons@(Cons c es) =
   match patterns
   where

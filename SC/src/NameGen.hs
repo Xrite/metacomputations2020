@@ -39,6 +39,7 @@ freshFunc = do
   fp <- use funcPref
   return (FuncName $ fp ++ show num)
 
+initialNameGen :: String -> String -> NameGen
 initialNameGen vp fp =
   NameGen
     { _varsCnt = 0,

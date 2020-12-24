@@ -26,6 +26,7 @@ deforest = do
     Nothing -> return ()
     Just node -> processNode node >> deforest
 
+processNode :: (MonadTrans t, MonadState ProcessTree (t m), MonadState NameGen m) => Int -> t m ()
 processNode node = do
   foldSuccessful <- tryFold node
   --when foldSuccessful (error "aaa")
@@ -38,6 +39,7 @@ processNode node = do
         then return ()
         else drive node
 
+tryFold :: MonadState ProcessTree m => Int -> m Bool
 tryFold n = do
   expr <- getExpression n
   case expr of
@@ -59,6 +61,7 @@ tryFold n = do
         Just subst -> return $ Just (t, subst)
         Nothing -> return Nothing
 
+tryGeneralize :: (MonadTrans t, MonadState ProcessTree (t m), MonadState NameGen m) => Int -> t m Bool
 tryGeneralize node = do
   expr <- getExpression node
   case expr of
@@ -92,6 +95,7 @@ tryGeneralize node = do
       let newExpr = Let (bindings subst) eg
       replaceNodeWith t newExpr
 
+buildProcessTree :: Program -> ProcessTree
 buildProcessTree program =
   let state = initialProcessTree program
       nameGen = initialNameGen

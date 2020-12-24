@@ -7,28 +7,39 @@ import Lang
 
 data Substitution = Substitution [(Variable, Exp)] deriving (Eq, Show)
 
+union :: Substitution -> Substitution -> Substitution
 union (Substitution s1) (Substitution s2) = Substitution $ List.union s1 s2
 
+unionAll :: Foldable t => t Substitution -> Substitution
 unionAll substs = foldl union empty substs
 
+empty :: Substitution
 empty = Substitution []
 
+single :: Variable -> Exp -> Substitution
 single v e = Substitution [(v, e)]
 
+assoc :: Substitution -> Variable -> Maybe Exp
 assoc (Substitution s) v = lookup v s
 
+add :: Substitution -> Variable -> Exp -> Substitution
 add (Substitution s) v e = Substitution $ (v, e) : s
 
+remove :: Substitution -> Variable -> Substitution
 remove (Substitution s) v = case lookup v s of
   Nothing -> Substitution s
   Just e -> Substitution $ List.delete (v, e) s
 
+bindAll :: [Variable] -> [Exp] -> Substitution
 bindAll vs es = Substitution $ zip vs es
 
+idSubst :: [Variable] -> Substitution
 idSubst vs = bindAll vs (map Var vs)
 
+bindings :: Substitution -> [(Variable, Exp)]
 bindings (Substitution s) = s
 
+fromBindings :: [(Variable, Exp)] -> Substitution
 fromBindings bs = let (vs, es) = unzip bs in bindAll vs es
 
 domain (Substitution s) = map fst s

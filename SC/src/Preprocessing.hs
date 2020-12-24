@@ -7,6 +7,7 @@ import Lang
 import NameGen
 import Substitution
 
+preprocessProgram :: MonadState NameGen f => Program -> f Program
 preprocessProgram (Program e defs) = Program <$> preprocessExp e <*> mapM preprocessDef defs
   where
     preprocessExp e = case e of
@@ -32,6 +33,7 @@ preprocessProgram (Program e defs) = Program <$> preprocessExp e <*> mapM prepro
       body' <- preprocessExp $ apply (bindAll vs (map Var vs')) body
       return $ Definition f vs' body'
 
+preprocess :: Program -> Program
 preprocess p = evalState (preprocessProgram p) nameGen
   where
     nameGen = initialNameGen "pv" "pf"
